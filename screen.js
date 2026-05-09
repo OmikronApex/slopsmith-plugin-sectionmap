@@ -168,11 +168,19 @@ function _smFmt(s) {
     return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 }
 
-// Poll for updates
-setInterval(_smUpdate, 200);
-
-// Hook into playSong
+// Side effects: poller + playSong/showScreen wrappers. Consolidated under
+// one idempotency guard so re-evaluation (loader cache miss, hot reload,
+// older core builds without the load-side guard) doesn't start a second
+// 5Hz poller and doesn't grow either wrapper chain.
 (function() {
+    const HOOK_KEY = '__slopsmithSectionMapHooksInstalled';
+    if (window[HOOK_KEY]) return;
+    window[HOOK_KEY] = true;
+
+    // Poll for updates
+    setInterval(_smUpdate, 200);
+
+    // Hook into playSong
     const origPlaySong = window.playSong;
     window.playSong = async function(filename, arrangement) {
         _smRemove();
@@ -181,10 +189,8 @@ setInterval(_smUpdate, 200);
         await origPlaySong(filename, arrangement);
         _smCreate();
     };
-})();
 
-// Clean up when leaving player
-(function() {
+    // Clean up when leaving player
     const origShowScreen = window.showScreen;
     window.showScreen = function(id) {
         if (id !== 'player') _smRemove();
