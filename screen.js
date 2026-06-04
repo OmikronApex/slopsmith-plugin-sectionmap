@@ -140,10 +140,8 @@ function _smUpdate() {
         _smRender();
     }
 
-    // Update playback position indicator via transform — compositor only, no layout
     if (_smMarker && _smDuration > 0) {
-        const pct = (t / _smDuration) * 100;
-        _smMarker.style.transform = `translateX(${pct}%)`;
+        _smMarker.style.left = `${(t / _smDuration) * 100}%`;
     }
 
     // Highlight active section — skip if active index unchanged
@@ -186,8 +184,7 @@ function _smRender() {
         </div>`;
     }
 
-    // Marker: left:0 + translateX(pct%) keeps it on compositor layer
-    html += '<div id="sm-marker" style="position:absolute;top:0;bottom:0;left:0;width:2px;background:white;z-index:1;pointer-events:none;transition:transform 0.1s linear;"></div>';
+    html += '<div id="sm-marker" style="position:absolute;top:0;bottom:0;left:0;width:2px;background:white;z-index:1;pointer-events:none;transition:left 0.1s linear;"></div>';
 
     _smBar.innerHTML = html;
     _smBar.style.position = 'relative';
