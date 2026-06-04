@@ -32,15 +32,16 @@ function _smGetColor(name) {
 }
 
 function _smCreate() {
-    if (_smBar) return;
+    if (_smBar) { console.log('[SM] _smCreate: already exists, skipping'); return; }
     const player = document.getElementById('player');
-    if (!player) return;
+    if (!player) { console.warn('[SM] _smCreate: #player not found'); return; }
 
     _smBar = document.createElement('div');
     _smBar.id = 'section-map';
     _smBar.style.cssText = 'position:absolute;top:0;left:0;right:0;z-index:5;height:20px;background:rgba(8,8,16,0.7);cursor:pointer;';
 
     player.prepend(_smBar);
+    console.log('[SM] _smCreate: bar inserted into #player', player);
 
     _smBar.addEventListener('click', _smOnClick);
     _smBar.addEventListener('wheel', _smOnWheel, { passive: false });
@@ -54,6 +55,7 @@ function _smRemove() {
     if (_smBar) {
         _smBar.remove();
         _smBar = null;
+        console.log('[SM] _smRemove: bar removed');
     }
     _smMarker = null;
     _smBlocks = [];
@@ -119,6 +121,7 @@ function _smUpdate() {
 
     // Only rebuild if sections changed (guard with length to handle new-array-same-content)
     if (sections !== _smSections || sections.length !== _smSections.length) {
+        console.log('[SM] _smUpdate: sections changed, rebuilding', sections.length, 'sections');
         _smSections = sections;
         _smRender();
     }
@@ -144,7 +147,11 @@ function _smUpdate() {
 }
 
 function _smRender() {
-    if (!_smBar || !_smSections.length || !_smDuration) return;
+    if (!_smBar || !_smSections.length || !_smDuration) {
+        console.warn('[SM] _smRender: aborted — bar:', !!_smBar, 'sections:', _smSections.length, 'duration:', _smDuration);
+        return;
+    }
+    console.log('[SM] _smRender: rendering', _smSections.length, 'sections, duration', _smDuration);
 
     let html = '';
 
@@ -175,6 +182,7 @@ function _smRender() {
     _smMarker = document.getElementById('sm-marker');
     _smBlocks = Array.from(_smBar.querySelectorAll('.sm-block'));
     _smActiveIdx = -1; // force opacity update on next tick
+    console.log('[SM] _smRender: done, marker:', !!_smMarker, 'blocks:', _smBlocks.length);
 }
 
 function _smFmt(s) {
@@ -187,12 +195,14 @@ function _smFmt(s) {
 // 5Hz poller and doesn't grow either wrapper chain.
 (function() {
     const HOOK_KEY = '__slopsmithSectionMapHooksInstalled';
-    if (window[HOOK_KEY]) return;
+    if (window[HOOK_KEY]) { console.log('[SM] hooks already installed, skipping'); return; }
     window[HOOK_KEY] = true;
+    console.log('[SM] installing hooks');
 
     // Hook into playSong
     const origPlaySong = window.playSong;
     window.playSong = async function(filename, arrangement) {
+        console.log('[SM] playSong called:', filename);
         _smRemove();
         _smSections = [];
         _smDuration = 0;
@@ -201,9 +211,12 @@ function _smFmt(s) {
         } finally {
             const info = highway.getSongInfo();
             _smDuration = info ? info.duration : 0;
+            console.log('[SM] playSong done — duration:', _smDuration, 'info:', info);
             if (_smDuration) {
                 _smCreate();
                 _smIntervalId = setInterval(_smUpdate, 200);
+            } else {
+                console.warn('[SM] playSong: no duration, bar not created');
             }
         }
     };
