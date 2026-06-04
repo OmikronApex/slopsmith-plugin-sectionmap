@@ -196,12 +196,16 @@ function _smFmt(s) {
         _smRemove();
         _smSections = [];
         _smDuration = 0;
-        await origPlaySong(filename, arrangement);
-        const info = highway.getSongInfo();
-        _smDuration = info.duration;
-        _smCreate();
-        // Start polling only while player is active
-        _smIntervalId = setInterval(_smUpdate, 200);
+        try {
+            await origPlaySong(filename, arrangement);
+        } finally {
+            const info = highway.getSongInfo();
+            _smDuration = info ? info.duration : 0;
+            if (_smDuration) {
+                _smCreate();
+                _smIntervalId = setInterval(_smUpdate, 200);
+            }
+        }
     };
 
     // Clean up when leaving player
