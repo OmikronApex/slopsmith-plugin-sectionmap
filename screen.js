@@ -4,6 +4,10 @@
 let _smBar = null;
 let _smSections = [];
 let _smDuration = 0;
+let _smMarker = null;
+let _smBlocks = [];
+let _smActiveIdx = -1;
+let _smIntervalId = null;
 
 const SM_COLORS = {
     'intro': '#3b82f6',
@@ -44,10 +48,17 @@ function _smCreate() {
 }
 
 function _smRemove() {
+    if (_smIntervalId !== null) {
+        clearInterval(_smIntervalId);
+        _smIntervalId = null;
+    }
     if (_smBar) {
         _smBar.remove();
         _smBar = null;
     }
+    _smMarker = null;
+    _smBlocks = [];
+    _smActiveIdx = -1;
 }
 
 function _smOnClick(e) {
@@ -103,36 +114,34 @@ function _smOnWheel(e) {
 function _smUpdate() {
     if (!_smBar) return;
     const sections = highway.getSections();
-    const info = highway.getSongInfo();
     const t = highway.getTime();
 
-    if (!sections || sections.length === 0 || !info.duration) return;
+    if (!sections || sections.length === 0 || !_smDuration) return;
 
-    _smDuration = info.duration;
-
-    // Only rebuild if sections changed
-    if (sections !== _smSections) {
+    // Only rebuild if sections changed (guard with length to handle new-array-same-content)
+    if (sections !== _smSections || sections.length !== _smSections.length) {
         _smSections = sections;
         _smRender();
     }
 
-    // Update playback position indicator
-    const marker = document.getElementById('sm-marker');
-    if (marker && _smDuration > 0) {
+    // Update playback position indicator via transform — compositor only, no layout
+    if (_smMarker && _smDuration > 0) {
         const pct = (t / _smDuration) * 100;
-        marker.style.left = pct + '%';
+        _smMarker.style.transform = `translateX(${pct}%)`;
     }
 
-    // Highlight active section
-    const blocks = _smBar.querySelectorAll('.sm-block');
-    let activeIdx = 0;
+    // Highlight active section — skip if active index unchanged
+    let newIdx = 0;
     for (let i = 0; i < _smSections.length; i++) {
-        if (_smSections[i].time <= t) activeIdx = i;
+        if (_smSections[i].time <= t) newIdx = i;
         else break;
     }
-    blocks.forEach((block, i) => {
-        block.style.opacity = i === activeIdx ? '1' : '0.5';
-    });
+    if (newIdx !== _smActiveIdx) {
+        _smActiveIdx = newIdx;
+        _smBlocks.forEach((block, i) => {
+            block.style.opacity = i === newIdx ? '1' : '0.5';
+        });
+    }
 }
 
 function _smRender() {
@@ -157,11 +166,16 @@ function _smRender() {
         </div>`;
     }
 
-    // Playback position marker
-    html += '<div id="sm-marker" style="position:absolute;top:0;bottom:0;width:2px;background:white;z-index:1;pointer-events:none;transition:left 0.1s linear;"></div>';
+    // Marker: left:0 + translateX(pct%) keeps it on compositor layer
+    html += '<div id="sm-marker" style="position:absolute;top:0;bottom:0;left:0;width:2px;background:white;z-index:1;pointer-events:none;transition:transform 0.1s linear;"></div>';
 
     _smBar.innerHTML = html;
     _smBar.style.position = 'relative';
+
+    // Cache refs so _smUpdate never queries the DOM
+    _smMarker = document.getElementById('sm-marker');
+    _smBlocks = Array.from(_smBar.querySelectorAll('.sm-block'));
+    _smActiveIdx = -1; // force opacity update on next tick
 }
 
 function _smFmt(s) {
@@ -177,9 +191,6 @@ function _smFmt(s) {
     if (window[HOOK_KEY]) return;
     window[HOOK_KEY] = true;
 
-    // Poll for updates
-    setInterval(_smUpdate, 200);
-
     // Hook into playSong
     const origPlaySong = window.playSong;
     window.playSong = async function(filename, arrangement) {
@@ -187,7 +198,11 @@ function _smFmt(s) {
         _smSections = [];
         _smDuration = 0;
         await origPlaySong(filename, arrangement);
+        const info = highway.getSongInfo();
+        _smDuration = info.duration;
         _smCreate();
+        // Start polling only while player is active
+        _smIntervalId = setInterval(_smUpdate, 200);
     };
 
     // Clean up when leaving player
