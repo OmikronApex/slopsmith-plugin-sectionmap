@@ -113,11 +113,25 @@ function _smOnWheel(e) {
 }
 
 function _smUpdate() {
+    // Lazy init: highway populates getSongInfo() asynchronously after playSong resolves
+    if (!_smDuration) {
+        const info = highway.getSongInfo();
+        if (info && info.duration) {
+            _smDuration = info.duration;
+            console.log('[SM] _smUpdate: got duration', _smDuration);
+        }
+    }
+
+    if (!_smBar && _smDuration) {
+        _smCreate();
+    }
+
     if (!_smBar) return;
+
     const sections = highway.getSections();
     const t = highway.getTime();
 
-    if (!sections || sections.length === 0 || !_smDuration) return;
+    if (!sections || sections.length === 0) return;
 
     // Only rebuild if sections changed (guard with length to handle new-array-same-content)
     if (sections !== _smSections || sections.length !== _smSections.length) {
@@ -209,15 +223,8 @@ function _smFmt(s) {
         try {
             await origPlaySong(filename, arrangement);
         } finally {
-            const info = highway.getSongInfo();
-            _smDuration = info ? info.duration : 0;
-            console.log('[SM] playSong done — duration:', _smDuration, 'info:', info);
-            if (_smDuration) {
-                _smCreate();
-                _smIntervalId = setInterval(_smUpdate, 200);
-            } else {
-                console.warn('[SM] playSong: no duration, bar not created');
-            }
+            console.log('[SM] playSong done — starting poll, highway will populate data async');
+            _smIntervalId = setInterval(_smUpdate, 200);
         }
     };
 
