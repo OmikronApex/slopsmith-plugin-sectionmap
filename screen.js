@@ -40,8 +40,7 @@ function _smCreate() {
     _smBar.id = 'section-map';
     _smBar.style.cssText = 'position:absolute;top:0;left:0;right:0;z-index:5;height:20px;background:rgba(8,8,16,0.7);cursor:pointer;';
 
-    // Insert as first child of player (very top)
-    player.insertBefore(_smBar, player.firstChild);
+    player.prepend(_smBar);
 
     _smBar.addEventListener('click', _smOnClick);
     _smBar.addEventListener('wheel', _smOnWheel, { passive: false });
